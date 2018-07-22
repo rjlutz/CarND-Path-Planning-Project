@@ -5,8 +5,8 @@
 #ifndef PATH_PLANNING_UTILS_H
 #define PATH_PLANNING_UTILS_H
 
-#include <math.h>
-
+using namespace std;
+using json = nlohmann::json;
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -103,6 +103,5 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
   return {x,y};
 }
-
 
 #endif //PATH_PLANNING_UTILS_H

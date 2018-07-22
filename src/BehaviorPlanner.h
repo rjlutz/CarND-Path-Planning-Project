@@ -5,12 +5,14 @@
 #ifndef PATH_PLANNING_BEHAVIORPLANNER_H
 #define PATH_PLANNING_BEHAVIORPLANNER_H
 
-#include <iostream>
-#include <random>
+#include <string>
 #include <vector>
 #include <map>
-#include <string>
 
+#include "json.hpp"
+
+
+using json = nlohmann::json;
 using namespace std;
 
 class BehaviorPlanner {
@@ -21,6 +23,15 @@ class BehaviorPlanner {
 
         int lane;
         string state;
+        bool cold;        // cold start flag
+        double ref_vel;
+
+        // Load up map values for waypoint's x,y,s and d normalized normal vectors
+        vector<double> map_waypoints_x;
+        vector<double> map_waypoints_y;
+        vector<double> map_waypoints_s;
+        vector<double> map_waypoints_dx;
+        vector<double> map_waypoints_dy;
 
         /**
         * Constructor
@@ -33,6 +44,9 @@ class BehaviorPlanner {
         * Destructor
         */
         virtual ~BehaviorPlanner();
+
+          vector<vector<double>> project(json j);
+          void configure();
 
 //        vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> predictions);
 //
@@ -63,6 +77,7 @@ class BehaviorPlanner {
 //        void realize_next_state(vector<Vehicle> trajectory);
 //
 //        void configure(vector<int> road_data);
+
 
 
 };
