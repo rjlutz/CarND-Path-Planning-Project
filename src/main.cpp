@@ -5,12 +5,14 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "BehaviorPlanner.h"
+
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
-#include "BehaviorPlanner.h"
 
 using namespace std;
 using namespace uWS;
+using namespace spdlog;
 
 // for convenience
 using json = nlohmann::json;
@@ -27,7 +29,6 @@ string hasData(string s) {
   else if (b1 != string::npos && b2 != string::npos)
     return s.substr(b1, b2 - b1 + 2);
   return "";
-  //return (b1 != string::npos && b2 != string::npos) ? s.substr(b1, b2 - b1 + 2) : "";
 }
 
 int main() {
@@ -35,9 +36,11 @@ int main() {
   Hub h;
 
   int lane = 1;            // start in lane 1 FROM Walkthrough
-  //double ref_vel = 0.0;   // mph, move a reference velocity to target, from walkthrough
 
-  BehaviorPlanner planner = BehaviorPlanner(lane, "CS");
+  auto console = stdout_color_mt("console");
+  console->set_level(level::debug);
+
+  BehaviorPlanner planner = BehaviorPlanner(console, lane, "CS");
 
   h.onMessage([&planner,&lane](WebSocket<SERVER> ws, char *data, size_t length,
                      OpCode opCode) {
@@ -53,25 +56,20 @@ int main() {
         auto j = json::parse(s);
         
         string event = j[0].get<string>();
-        
+
         if (event == "telemetry") {     // j[1] is the data JSON object
 
-            //TODO CALL!
-            vector<vector<double>> projection = planner.project(j);
+          vector<vector<double>> projection = planner.project(j);
 
-            json msgJson;
-            msgJson["next_x"] = projection[0];
-          	msgJson["next_y"] = projection[1];
+          json msgJson;
+          msgJson["next_x"] = projection[0];
+          msgJson["next_y"] = projection[1];
 
-            cout << "msgJson[\"next_x\"] = " << msgJson["next_x"];
-            cout << "msgJson[\"next_y\"] = " << msgJson["next_y"];
+          auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
+          //this_thread::sleep_for(chrono::milliseconds(1000));
+          ws.send(msg.data(), msg.length(), OpCode::TEXT);
 
-          auto msg = "42[\"control\","+ msgJson.dump()+"]";
-
-          	//this_thread::sleep_for(chrono::milliseconds(1000));
-          	ws.send(msg.data(), msg.length(), OpCode::TEXT);
-          
         }
       } else {
         // Manual driving

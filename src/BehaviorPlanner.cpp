@@ -1,36 +1,30 @@
+#include <fstream>
 #include "BehaviorPlanner.h"
 #include "spline.h"
-#include <fstream>
 #include "utils.h"
-
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 using namespace std;
+using namespace spdlog;
 
 BehaviorPlanner::BehaviorPlanner() = default; // Initializes Vehicle
 
-BehaviorPlanner::BehaviorPlanner(int lane, string state) {
+BehaviorPlanner::BehaviorPlanner(shared_ptr<logger> console, int lane, string state) {
+  this->console = console;
   this->lane = lane;
   this->state = state;
   this->cold = true;
-  this->configure();
-  this->ref_vel = 0.0;
+  this->velocity = 0.0;
 
-//  max_acceleration = -1;
+  this->configure();
 }
 
 BehaviorPlanner::~BehaviorPlanner() = default;
 
 void BehaviorPlanner::configure() {
 
-  // Waypoint map to read from
-  string map_file_ = "../data/highway_map.csv";
-  // The max s value before wrapping around the track back to 0
-  double max_s = 6945.554;
-
-  ifstream in_map_(map_file_.c_str(), ifstream::in);
-
+  ifstream in_map_(MAP_FILE.c_str(), ifstream::in);
   string line;
   while (getline(in_map_, line)) {
     istringstream iss(line);
@@ -49,10 +43,6 @@ void BehaviorPlanner::configure() {
 }
 
 vector<vector<double>> BehaviorPlanner::project(json j) {
-
-//  auto console = spdlog::stdout_color_mt("console");
-//  console->set_level(spdlog::level::debug);
-//  console->info("Begin Path Planning");
 
   double car_x = j[1]["x"];     // Main car's localization Data
   double car_y = j[1]["y"];
@@ -73,8 +63,7 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
 
   if (prev_size > 0) car_s = end_path_s; // from walkthrough video
   bool too_close = false;
-  double LANE_WIDTH = 4.0;
-  double HALF_LANE_WIDTH = LANE_WIDTH / 2.0;
+
   for (int i = 0; i < sensor_fusion.size(); i++) { // find ref_v to use
     float d = sensor_fusion[i][6]; // car is in my lane
     if (d < (HALF_LANE_WIDTH + LANE_WIDTH * lane + HALF_LANE_WIDTH) &&
@@ -91,17 +80,18 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
         too_close = true;
         if (lane > 0) { // need state machine here
           lane = 0;
+          console->debug("change lane to {}", lane);
         }
       }
     }
   }
 
   if (too_close) {
-    ref_vel -= 0.224;
-    //console->debug("decelerate to {}", ref_vel);
-  } else if (ref_vel < 49.5) {
-    ref_vel += 0.224;
-    //console->debug("accelerate to {}", ref_vel);
+    velocity -= MAX_ACCEL;
+    console->debug("decelerate to {}", velocity);
+  } else if (velocity < 49.5) {
+    velocity += MAX_ACCEL;
+    console->debug("accelerate to {}", velocity);
   }
   // end of from walkthrough video
 
@@ -116,10 +106,11 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   double ref_y = car_y;
   double ref_yaw = deg2rad(car_yaw);
 
-  //console->trace("prev_size = {}", prev_size);
+  console->trace("prev_size = {}", prev_size);
 
   if (cold) {
     // hair is a fabricated vector, so that we have an initial direction
+    console->info("Begin Path Planning");
     vector<double> hair = getXY(car_s+0.1, car_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
     ptsx.push_back(car_x);
     ptsx.push_back(hair[0]);
@@ -177,7 +168,7 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
 
   trajectory.set_points(ptsx, ptsy); // set (x,y) points to the spline
 
-  vector<double> next_x_vals; // define the actual (x,y) pts we will use for the planner
+  vector<double> next_x_vals; // define the actual (x,y) pts we will use for the simulator planner
   vector<double> next_y_vals;
 
   for (int i =0; i < previous_path_x.size(); i++) { // start with all the previous path points from last time
@@ -191,9 +182,8 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
 
   double x_add_on = 0;
 
-
   for(int i = 0; i <= 50-previous_path_x.size(); i++) { // fill in rest of PP after filling in with prev pts, always outputs 50 pts
-    double N = (target_dist/(0.02*ref_vel/2.24)); // 2.24 factor converts mph to m/s
+    double N = (target_dist/(0.02*velocity/2.24)); // 2.24 factor converts mph to m/s
     double x_point = x_add_on + (target_x)/N;
     double y_point = trajectory(x_point);
 

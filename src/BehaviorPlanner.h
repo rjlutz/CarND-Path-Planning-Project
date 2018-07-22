@@ -11,46 +11,56 @@
 
 #include "json.hpp"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 
 using json = nlohmann::json;
 using namespace std;
+using namespace spdlog;
 
 class BehaviorPlanner {
 
-    public:
+public:
 
-        map<string, int> lane_direction = {{"PLCL", 1}, {"LCL", 1}, {"LCR", -1}, {"PLCR", -1}};
+    static constexpr double LANE_WIDTH = 4.0;
+    static constexpr double HALF_LANE_WIDTH = LANE_WIDTH / 2.0;
+    static constexpr double MAX_ACCEL = 0.224;
 
-        int lane;
-        string state;
-        bool cold;        // cold start flag
-        double ref_vel;
+    static constexpr double MAX_S = 6945.554; // The max s value before wrapping around the track back to 0
 
-        // Load up map values for waypoint's x,y,s and d normalized normal vectors
-        vector<double> map_waypoints_x;
-        vector<double> map_waypoints_y;
-        vector<double> map_waypoints_s;
-        vector<double> map_waypoints_dx;
-        vector<double> map_waypoints_dy;
+    // Waypoint map to read from
+    string MAP_FILE = "../data/highway_map.csv";
 
-        /**
-        * Constructor
-        */
-        BehaviorPlanner();
+    map<string, int> lane_direction = {{"PLCL", 1},
+                                       {"LCL",  1},
+                                       {"LCR",  -1},
+                                       {"PLCR", -1}};
 
-        BehaviorPlanner(int lane, string state="CS");
+    int lane;
+    string state;
+    bool cold;        // cold start flag
+    double velocity;   // mph, move a reference velocity to target, from walkthrough
+    shared_ptr<logger> console;
 
-        /**
-        * Destructor
-        */
-        virtual ~BehaviorPlanner();
+    // Load up map values for waypoint's x,y,s and d normalized normal vectors
+    vector<double> map_waypoints_x;
+    vector<double> map_waypoints_y;
+    vector<double> map_waypoints_s;
+    vector<double> map_waypoints_dx;
+    vector<double> map_waypoints_dy;
 
-          vector<vector<double>> project(json j);
-          void configure();
+    BehaviorPlanner(); // Constructor
+    BehaviorPlanner(shared_ptr<logger> console, int lane, string state = "CS");
+    virtual ~BehaviorPlanner(); // Destructor
+
+    vector<vector<double>> project(json j);
+
+    void configure();
 
 //        vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> predictions);
 //
-        vector<string> successor_states();
+    vector<string> successor_states();
 //
 //        vector<Vehicle> generate_trajectory(string state, map<int, vector<Vehicle>> predictions);
 //
@@ -77,8 +87,6 @@ class BehaviorPlanner {
 //        void realize_next_state(vector<Vehicle> trajectory);
 //
 //        void configure(vector<int> road_data);
-
-
 
 };
 
