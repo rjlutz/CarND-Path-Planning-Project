@@ -5,6 +5,10 @@
 #ifndef PATH_PLANNING_BEHAVIORPLANNER_H
 #define PATH_PLANNING_BEHAVIORPLANNER_H
 
+static const double MAX_SPEED = 50; // mph
+static const double MARGIN_SPEED = 0.5;
+static const double TARGET_SPEED = MAX_SPEED - MARGIN_SPEED;
+
 #include <string>
 #include <vector>
 #include <map>
@@ -26,16 +30,16 @@ public:
     static constexpr double LANE_WIDTH = 4.0;
     static constexpr double HALF_LANE_WIDTH = LANE_WIDTH / 2.0;
     static constexpr double MAX_ACCEL = 0.224;
+    static constexpr double MAX_S = 6945.554;    // The max s value before wrapping around the track back to 0
+    static constexpr int LANES_AVAIL = 3;
 
-    static constexpr double MAX_S = 6945.554; // The max s value before wrapping around the track back to 0
+    string MAP_FILE = "../data/highway_map.csv"; // Waypoint map to read from
 
-    // Waypoint map to read from
-    string MAP_FILE = "../data/highway_map.csv";
 
-    map<string, int> lane_direction = {{"PLCL", 1},
-                                       {"LCL",  1},
-                                       {"LCR",  -1},
-                                       {"PLCR", -1}};
+    map<string, int> lane_direction = {{"PLCL", -1},
+                                       {"LCL",  -1},
+                                       {"LCR",  1},
+                                       {"PLCR", 1}};
 
     int lane;
     string state;
@@ -58,9 +62,13 @@ public:
 
     void configure();
 
+    vector<double> lane_speeds(json j);
+
+    vector<string> successor_states();
+
+
 //        vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> predictions);
 //
-    vector<string> successor_states();
 //
 //        vector<Vehicle> generate_trajectory(string state, map<int, vector<Vehicle>> predictions);
 //
@@ -85,8 +93,7 @@ public:
 //        vector<Vehicle> generate_predictions(int horizon=2);
 //
 //        void realize_next_state(vector<Vehicle> trajectory);
-//
-//        void configure(vector<int> road_data);
+
 
 };
 

@@ -35,7 +35,7 @@ int main() {
 
   Hub h;
 
-  int lane = 1;            // start in lane 1 FROM Walkthrough
+  int lane = 1;            // start in lane 1 : from walkthrough
 
   auto console = stdout_color_mt("console");
   console->set_level(level::debug);
@@ -54,22 +54,15 @@ int main() {
 
       if (s != "") {
         auto j = json::parse(s);
-        
         string event = j[0].get<string>();
 
         if (event == "telemetry") {     // j[1] is the data JSON object
-
           vector<vector<double>> projection = planner.project(j);
-
           json msgJson;
           msgJson["next_x"] = projection[0];
           msgJson["next_y"] = projection[1];
-
           auto msg = "42[\"control\"," + msgJson.dump() + "]";
-
-          //this_thread::sleep_for(chrono::milliseconds(1000));
           ws.send(msg.data(), msg.length(), OpCode::TEXT);
-
         }
       } else {
         // Manual driving
@@ -79,21 +72,20 @@ int main() {
     }
   });
 
-  h.onConnection([](WebSocket<SERVER> ws, HttpRequest req) {
+  h.onConnection([&console](WebSocket<SERVER> ws, HttpRequest req) {
     std::cout << "Connected!!!" << std::endl;
   });
 
-  h.onDisconnection([](WebSocket<SERVER> ws, int code,
-                         char *message, size_t length) {
+  h.onDisconnection([&console](WebSocket<SERVER> ws, int code, char *message, size_t length) {
     ws.close();
-    std::cout << "Disconnected" << std::endl;
+    console->debug("Disconnected");
   });
 
   int port = 4567;
-  if (h.listen(port)) {
-    std::cout << "Listening to port " << port << std::endl;
-  } else {
-    std::cerr << "Failed to listen to port" << std::endl;
+  if (h.listen(port))
+    console->debug("Listening to port {}", port);
+  else {
+    console->debug("Failed to listen to port {}", port);
     return -1;
   }
   h.run();
