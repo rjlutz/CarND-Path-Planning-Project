@@ -47,13 +47,19 @@ public:
     vector<string> successor_states();
 
     string choose_next_state(json ego, json sensor_fusion, double projection_factor);
-    //double slowest_lane(vector<double> speeds);
+
     int car_ahead(int lane, json ego, json cars, int within_distance, int projection_factor);
+
     double inefficiency_cost(string state, json ego, json cars, double projection_factor);
+
     double calculate_cost(string state, json ego, json cars, double projection_factor);
+
     double tie_breaker_cost(string state, json ego, json cars, double projection_factor);
+
     double safety_cost(string state, json ego, json cars, double projection_factor);
+
     bool is_in_lane(float d_from_center, int lane_to_test);
+
     double calc_speed(json car);
 
 };

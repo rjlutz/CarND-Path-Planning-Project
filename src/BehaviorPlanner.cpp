@@ -39,9 +39,9 @@ double BehaviorPlanner::calculate_cost(string state, json ego, json cars, double
   double s_cost = safety_cost(state, ego, cars, projection_factor);
   double t_cost = tie_breaker_cost(state, ego, cars, projection_factor);
   double total = max(s_cost, i_weight * i_cost + t_weight * t_cost); // safety cost overrules
-  console->debug("candidate state:{:>4} s:{: 3.2f}| i:{: 3.2f} t:{: 3.2f}",
+  console->trace("candidate state:{:>4} s:{: 3.2f}| i:{: 3.2f} t:{: 3.2f}",
                  state, s_cost, i_cost, t_cost);
-  console->debug("   (i,t weighted)    s:{: 3.2f}| i:{: 3.2f} t:{: 3.2f} total:{: 3.2f}",
+  console->trace("   (i,t weighted)    s:{: 3.2f}| i:{: 3.2f} t:{: 3.2f} total:{: 3.2f}",
                  s_cost, i_weight * i_cost, t_weight * t_cost, total);
   return total;
 }
@@ -121,12 +121,12 @@ double BehaviorPlanner::safety_cost(string _state, json ego, json cars, double p
         other_car_s += projection_factor * calc_speed(other_car);
         double dist_s = other_car_s - ego_s;
         if (dist_s > -2.0 * CAR_LENGTH && dist_s < 4.0 * CAR_LENGTH) {
-          console->debug("s:{} check_car_s:{} dist_x:{} car is too close when attempting {}",
+          console->trace("s:{} check_car_s:{} dist_x:{} car is too close when attempting {}",
                          ego_s, other_car_s, dist_s, _state);
           cost = 1;
           break; // we only need one!
         } else {
-          console->debug("s:{} check_car_s:{} dist_x:{} car is NOT too close when attempting {}",
+          console->trace("s:{} check_car_s:{} dist_x:{} car is NOT too close when attempting {}",
                          ego_s, other_car_s, dist_s, _state);
         }
       }
@@ -146,15 +146,11 @@ double BehaviorPlanner::inefficiency_cost(string state, json ego, json cars, dou
       json other = cars[car_ahead_index];
       double other_s = other[5];
       double s = ego["s"];
-      cost = map_value(other_s - s, 50, 20, 0, 1);
+      cost = map_value(other_s - s, 50, 10, 0, 1);
     } else {
       cost = 0.0;
     }
   }
-
-//  console->trace("state: {} considering {} cost: {} lane: {} velocity: {} delta: {} Speeds: {} {} {}",
-//                 this->state, state, cost, lane, velocity, delta, speeds[0], speeds[1], speeds[2]);
-
   return cost;
 }
 
@@ -202,12 +198,10 @@ double BehaviorPlanner::calc_speed(json car) {
 int BehaviorPlanner::car_ahead(int lane, json ego, json cars, int within_distance, int projection_factor) {
 
   int result = -1;
-  //int closest = numeric_limits<double>::max(); // doesnt work ???
   int closest = 999999.0;
   double s = ego["s"];
 
   for (int i = 0; i < cars.size(); i++) { // find ref_v to use
-
     json other = cars[i];
     float d = other[6]; // other car is in my lane?
     if (is_in_lane(d, lane)) {
@@ -222,9 +216,8 @@ int BehaviorPlanner::car_ahead(int lane, json ego, json cars, int within_distanc
       }
     }
   }
-  if (result != -1) {
+  if (result != -1)
     console->trace("returning lane: {} result: {} closest: {}", lane, result, closest);
-  }
   return result;
 }
 
@@ -291,7 +284,7 @@ string BehaviorPlanner::choose_next_state(json ego, json cars, double projection
       best = candidate;
     }
   }
-  console->debug("best candidate {}: cost: {}\n", best, min_cost);
+  console->trace("best candidate {}: cost: {}\n", best, min_cost);
   return best;
 }
 
@@ -321,7 +314,7 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   vector<double> next_y_vals;
   vector<vector<double>> result;
 
-  console->debug("track: {:3.0f}%", (car_s / MAX_S) * 100.0);
+  console->trace("track: {:3.0f}%", (car_s / MAX_S) * 100.0);
 
   if (prev_size > 0) car_s = end_path_s; // from walkthrough video
 
@@ -330,14 +323,14 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
     if (abs(car_d - (LANE_WIDTH / 2.0 + intended_lane * LANE_WIDTH)) < 0.5) {
       next_state = "KL";
       lane = intended_lane; // lane change complete
-      console->debug("intended lane acquired new state: {} current lane {}", next_state, lane);
+      console->trace("intended lane acquired new state: {} current lane {}", next_state, lane);
 
     } else {
       console->trace("NOT acquired, state maintained as : {}", state);
       next_state = state; // "LCL" or "LCR"
     }
   } else {
-    next_state = choose_next_state(ego, sensor_fusion, prev_size * 0.02);
+    next_state = choose_next_state(ego, sensor_fusion, prev_size * DELTA_T);
     console->trace("next state = {}", next_state);
   }
 
@@ -357,10 +350,10 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
       if (msg.compare("") != 0) msg += " ";
       msg += s;
     }
-    console->debug("state changed to: {} successors: {}", state, msg);
+    console->trace("state changed to: {} successors: {}", state, msg);
   }
 
-  int car_ahead_index = car_ahead(lane, ego, sensor_fusion, 2 * FAR_SEE, prev_size * 0.02);
+  int car_ahead_index = car_ahead(lane, ego, sensor_fusion, 2 * FAR_SEE, prev_size * DELTA_T);
   if (car_ahead_index != -1) {
     console->trace("car_ahead_index: {}", car_ahead_index);
   }
@@ -463,7 +456,7 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   // fill in rest of PP after filling in with prev pts, always outputs 50 pts
   for (int i = 0; i <= 50 - previous_path_x.size(); i++) {
 
-    double N = (target_dist / (0.02 * velocity / 2.24)); // 2.24 factor converts mph to m/s
+    double N = (target_dist / (DELTA_T * velocity / 2.24)); // 2.24 factor converts mph to m/s
     double x_point = x_add_on + (target_x) / N;
     double y_point = trajectory(x_point);
 
