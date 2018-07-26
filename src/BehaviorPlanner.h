@@ -52,8 +52,8 @@ public:
     double inefficiency_cost(string state, json ego, json cars, double projection_factor);
     double calculate_cost(string state, json ego, json cars, double projection_factor);
     double tie_breaker_cost(string state, json ego, json cars, double projection_factor);
-    double safety_cost(string state, json ego, int intended_lane, json cars, double projection_factor);
-    bool is_in_same_lane(float d_from_center, int lane_to_test);
+    double safety_cost(string state, json ego, json cars, double projection_factor);
+    bool is_in_lane(float d_from_center, int lane_to_test);
     double calc_speed(json car);
 
 };

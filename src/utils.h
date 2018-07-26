@@ -20,7 +20,15 @@ double distance(double x1, double y1, double x2, double y2) {
 }
 
 double map_value(double x, double in_min, double in_max, double out_min, double out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+
+  double result = (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+
+  if (result < out_min) // clamp min
+    result = out_min;
+  else if (result > out_max) // clamp_out
+    result = out_max;
+
+  return result;
 }
 
 
