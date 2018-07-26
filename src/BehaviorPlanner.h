@@ -1,13 +1,5 @@
-//
-// Created by Bob Lutz on 7/22/18.
-//
-
 #ifndef PATH_PLANNING_BEHAVIORPLANNER_H
 #define PATH_PLANNING_BEHAVIORPLANNER_H
-
-static const double MAX_SPEED = 50; // mph
-static const double MARGIN_SPEED = 0.5;
-static const double TARGET_SPEED = MAX_SPEED - MARGIN_SPEED;
 
 #include <string>
 #include <vector>
@@ -27,24 +19,12 @@ class BehaviorPlanner {
 
 public:
 
-    static constexpr double LANE_WIDTH = 4.0;
-    static constexpr double HALF_LANE_WIDTH = LANE_WIDTH / 2.0;
-    static constexpr double MAX_ACCEL = 0.224;
-    static constexpr double MAX_S = 6945.554;    // The max s value before wrapping around the track back to 0
-    static constexpr int LANES_AVAIL = 3;
-
-    string MAP_FILE = "../data/highway_map.csv"; // Waypoint map to read from
-
-
-    map<string, int> lane_direction = {{"PLCL", -1},
-                                       {"LCL",  -1},
-                                       {"LCR",  1},
-                                       {"PLCR", 1}};
-
     int lane;
+    int intended_lane;
     string state;
     bool cold;        // cold start flag
     double velocity;   // mph, move a reference velocity to target, from walkthrough
+    double governor;
     shared_ptr<logger> console;
 
     // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -66,34 +46,15 @@ public:
 
     vector<string> successor_states();
 
-
-//        vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> predictions);
-//
-//
-//        vector<Vehicle> generate_trajectory(string state, map<int, vector<Vehicle>> predictions);
-//
-//        vector<float> get_kinematics(map<int, vector<Vehicle>> predictions, int lane);
-//
-//        vector<Vehicle> constant_speed_trajectory();
-//
-//        vector<Vehicle> keep_lane_trajectory(map<int, vector<Vehicle>> predictions);
-//
-//        vector<Vehicle> lane_change_trajectory(string state, map<int, vector<Vehicle>> predictions);
-//
-//        vector<Vehicle> prep_lane_change_trajectory(string state, map<int, vector<Vehicle>> predictions);
-//
-//        void increment(int dt);
-//
-//        float position_at(int t);
-//
-//        bool get_vehicle_behind(map<int, vector<Vehicle>> predictions, int lane, Vehicle & rVehicle);
-//
-//        bool get_vehicle_ahead(map<int, vector<Vehicle>> predictions, int lane, Vehicle & rVehicle);
-//
-//        vector<Vehicle> generate_predictions(int horizon=2);
-//
-//        void realize_next_state(vector<Vehicle> trajectory);
-
+    string choose_next_state(json ego, json sensor_fusion, double projection_factor);
+    //double slowest_lane(vector<double> speeds);
+    int car_ahead(int lane, json ego, json cars, int within_distance, int projection_factor);
+    double inefficiency_cost(string state, json ego, json cars, double projection_factor);
+    double calculate_cost(string state, json ego, json cars, double projection_factor);
+    double tie_breaker_cost(string state, json ego, json cars, double projection_factor);
+    double safety_cost(string state, json ego, int intended_lane, json cars, double projection_factor);
+    bool is_in_same_lane(float d_from_center, int lane_to_test);
+    double calc_speed(json car);
 
 };
 

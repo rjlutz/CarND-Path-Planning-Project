@@ -40,7 +40,7 @@ int main() {
   auto console = stdout_color_mt("console");
   console->set_level(level::debug);
 
-  BehaviorPlanner planner = BehaviorPlanner(console, lane, "CS");
+  BehaviorPlanner planner = BehaviorPlanner(console, lane, "KL");
 
   h.onMessage([&planner,&lane](WebSocket<SERVER> ws, char *data, size_t length,
                      OpCode opCode) {
@@ -73,7 +73,7 @@ int main() {
   });
 
   h.onConnection([&console](WebSocket<SERVER> ws, HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
+    console->debug("Connected!!!");
   });
 
   h.onDisconnection([&console](WebSocket<SERVER> ws, int code, char *message, size_t length) {

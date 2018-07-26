@@ -8,6 +8,8 @@
 using namespace std;
 using json = nlohmann::json;
 
+//static const double HALF_LANE_WIDTH = LANE_WIDTH / 2.0;
+
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
@@ -16,6 +18,11 @@ double rad2deg(double x) { return x * 180 / pi(); }
 double distance(double x1, double y1, double x2, double y2) {
   return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
+
+double map_value(double x, double in_min, double in_max, double out_min, double out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 
 int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y) {
   double closestLen = 100000; //large number
