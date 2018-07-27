@@ -23,7 +23,7 @@ The car must not come into contact with any of the other cars on the road.
 ## Demonstration 
 [Final Video](https://www.dropbox.com/s/c0a89442iq9gcbj/pathplanning.mp4?dl=0 "Demo Video")
 
-# Finite State Machine Model
+## Finite State Machine Model
 
 The path planner implements the following state machine: 
 
@@ -65,7 +65,7 @@ The code that implements this model is:
 The specification was provided in the lectures for the Path Planning Module in Term 3.
 
 
-# Model Generation
+## Model Generation
 The in-lane and lane change paths are generated following the algorithm provided in the walkthrough video from David Silver and Aaron Brown. Several adjustments to that algorithm were required to make the simulation run successfully without incident:
 
 * cold start condition added to bootstrap path generation with an initial direction vector, based on the cars direction as specified by the simulator.
@@ -73,7 +73,7 @@ The in-lane and lane change paths are generated following the algorithm provided
 
 The source can be viewed in BehaviorPlanner,cpp lines 410 - 511. 
 
-# Cost Functions
+## Cost Functions
 
 Three cost functions are employed to implement the vehicle's path planning behavior:
 
