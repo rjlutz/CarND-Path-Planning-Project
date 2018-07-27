@@ -84,6 +84,9 @@ Three cost functions are employed to implement the vehicle's path planning behav
 **Tie Breaker Cost** Favors faster lanes when multiple lane change options exist.
 
 The costs are assembled in two ways. First, the inefficiency cost and tie-breaker cost are weighted and summed to create one overall weighted total. Additionally, the safety cost is evaluated and overrides the weighted sum if an unsafe state is encountered. 
+
+The source for the cost functions are found in BehaviorPlanner.cpp lines 35-174.
+
 ## Future Improvements
 
 Two opportunities exist for improvement:
