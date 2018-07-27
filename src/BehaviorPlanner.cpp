@@ -450,37 +450,14 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   vector<double> next_wp0 = getXY(car_s + 3.0 * FAR_SEE * 1 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
   vector<double> next_wp1 = getXY(car_s + 3.0 * FAR_SEE * 2 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
   vector<double> next_wp2 = getXY(car_s + 3.0 * FAR_SEE * 3 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp3 = getXY(car_s + 4.0 * FAR_SEE * 0.40, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp4 = getXY(car_s + 4.0 * FAR_SEE * 0.50, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp5 = getXY(car_s + 4.0 * FAR_SEE * 0.60, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp6 = getXY(car_s + 4.0 * FAR_SEE * 0.70, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp7 = getXY(car_s + 4.0 * FAR_SEE * 0.80, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp8 = getXY(car_s + 4.0 * FAR_SEE * 0.90, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  vector<double> next_wp9 = getXY(car_s + 4.0 * FAR_SEE * 1.00, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
 
   ptsx.push_back(next_wp0[0]);
   ptsx.push_back(next_wp1[0]);
   ptsx.push_back(next_wp2[0]);
-//    ptsx.push_back(next_wp3[0]);
-//    ptsx.push_back(next_wp4[0]);
-//    ptsx.push_back(next_wp5[0]);
-//    ptsx.push_back(next_wp6[0]);
-//    ptsx.push_back(next_wp7[0]);
-//    ptsx.push_back(next_wp8[0]);
-//    ptsx.push_back(next_wp9[0]);
-
 
   ptsy.push_back(next_wp0[1]);
   ptsy.push_back(next_wp1[1]);
   ptsy.push_back(next_wp2[1]);
-//    ptsy.push_back(next_wp3[1]);
-//    ptsy.push_back(next_wp4[1]);
-//    ptsy.push_back(next_wp5[1]);
-//    ptsy.push_back(next_wp6[1]);
-//    ptsy.push_back(next_wp7[1]);
-//    ptsy.push_back(next_wp8[1]);
-//    ptsy.push_back(next_wp9[1]);
 
   for (int i = 0; i < ptsx.size(); i++) { //shift car reference angle to 0 degrees
     double shift_x = ptsx[i] - ref_x;
