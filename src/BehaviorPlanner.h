@@ -21,6 +21,7 @@ public:
 
     int lane;
     int intended_lane;
+    int last_track_progress;
     string state;
     bool cold;        // cold start flag
     double velocity;   // mph, move a reference velocity to target, from walkthrough

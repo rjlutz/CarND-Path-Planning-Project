@@ -8,7 +8,7 @@ static const double MAX_SPEED = 50; // mph
 static const double MARGIN_SPEED = 0.5;
 static const double TARGET_SPEED = MAX_SPEED - MARGIN_SPEED;
 
-static const double MAX_ACCEL = 0.224;
+static const double MAX_ACCEL = 0.200;
 static const double MAX_S = 6945.554;    // The max s value before wrapping around the track back to 0
 
 static const int LANES_AVAIL = 3;

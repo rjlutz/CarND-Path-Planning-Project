@@ -23,6 +23,7 @@ BehaviorPlanner::BehaviorPlanner(shared_ptr<logger> console, int lane, string st
   this->cold = true;
   this->velocity = 0.0;
   this->governor = TARGET_SPEED;
+  this->last_track_progress = -1;
 
   this->configure();
 }
@@ -33,8 +34,8 @@ bool BehaviorPlanner::is_in_lane(float d, int lane_to_test) {
 
 double BehaviorPlanner::calculate_cost(string state, json ego, json cars, double projection_factor) {
 
-  double i_weight = 0.8;
-  double t_weight = 0.2;
+  double i_weight = 0.9;
+  double t_weight = 0.1;
   double i_cost = inefficiency_cost(state, ego, cars, projection_factor);
   double s_cost = safety_cost(state, ego, cars, projection_factor);
   double t_cost = tie_breaker_cost(state, ego, cars, projection_factor);
@@ -51,25 +52,23 @@ double BehaviorPlanner::tie_breaker_cost(string state, json ego, json cars, doub
   double cost = 0;
   if (lane == 0 || lane == LANES_AVAIL-1) return cost;
 
+  double delta;
+  vector<double> speeds = lane_speeds(cars);
+
   int r_car_ahead = car_ahead(lane + 1, ego, cars, 3 * FAR_SEE, projection_factor);
   int l_car_ahead = car_ahead(lane - 1, ego, cars, 3 * FAR_SEE, projection_factor);
 
   if (state.compare("PLCL") == 0) {
-    if (r_car_ahead != -1 && l_car_ahead != -1)
-      cost = cars[l_car_ahead][5] > cars[r_car_ahead][5] ? 1.0 : 0.0;
-    else if (r_car_ahead == -1 && l_car_ahead == -1)
-      cost = 0.0;
-    else
-      cost = (l_car_ahead == -1) ? 0.0 : 1.0;
+    delta = speeds[lane - 1] - speeds[lane];
+    console->trace("PLCL lane:{} delta: {}", lane, delta);
+    cost = map_value(delta, 15, 0, 0.0, 1.0); // jump if >= Nmph, sit otherwise
+
   }
 
   if (state.compare("PLCR") == 0) {
-    if (r_car_ahead != -1 && l_car_ahead != -1)
-      cost = cars[r_car_ahead][5] > cars[l_car_ahead][5] ? 1.0 : 0.0;
-    else if (r_car_ahead == -1 && l_car_ahead == -1)
-      cost = 0.0;
-    else
-      cost = (r_car_ahead == -1) ? 0.0 : 1.0;
+    delta = speeds[lane + 1] - speeds[lane];
+    console->trace("PLCR lane:{} delta: {}", lane, delta);
+    cost = map_value(delta, 15, 0, 0.0, 1.0);
   }
   return cost;
 }
@@ -82,35 +81,24 @@ double BehaviorPlanner::safety_cost(string _state, json ego, json cars, double p
   json other_car;
   double other_car_s, other_car_d;
 
-  double delta = 0.0;
-  vector<double> speeds = lane_speeds(cars);
-
-  int intended_lane;
-  if (_state.compare("LCL") == 0) {
-    intended_lane = lane - 1;
-  } else if (_state.compare("LCR") == 0) {
-    intended_lane = lane + 1;
-  }
-
-  if (state.compare("PLCL") == 0) {
-    if (lane == 0) {
+  if (state.compare("PLCL") == 0)
+    if (lane == 0)
       cost = 1.0; // no lanes to the left
-    } else {
-      delta = speeds[lane - 1] - speeds[lane];
-      cost = map_value(delta, 50, -50, 0.0, 1.0);
-    }
-  }
 
-  if (state.compare("PLCR") == 0) {
-    if (lane == LANES_AVAIL-1) {
+
+  if (state.compare("PLCR") == 0)
+    if (lane == LANES_AVAIL-1)
       cost = 1.0; // no lanes to the right
-    } else {
-      delta = speeds[lane + 1] - speeds[lane];
-      cost = map_value(delta, 50, -50, 0.0, 1.0);
-    }
-  }
+
 
   if (_state.compare("LCL") == 0 || _state.compare("LCR") == 0) {
+
+    int intended_lane;
+    if (_state.compare("LCL") == 0) {
+      intended_lane = lane - 1;
+    } else if (_state.compare("LCR") == 0) {
+      intended_lane = lane + 1;
+    }
 
     for (int i = 0; i < cars.size(); i++) {
       other_car = cars[i];
@@ -120,7 +108,7 @@ double BehaviorPlanner::safety_cost(string _state, json ego, json cars, double p
       if (is_in_lane(other_car_d, intended_lane)) {
         other_car_s += projection_factor * calc_speed(other_car);
         double dist_s = other_car_s - ego_s;
-        if (dist_s > -2.0 * CAR_LENGTH && dist_s < 4.0 * CAR_LENGTH) {
+        if (dist_s > -1.0 * CAR_LENGTH && dist_s < 4.0 * CAR_LENGTH) {
           console->trace("s:{} check_car_s:{} dist_x:{} car is too close when attempting {}",
                          ego_s, other_car_s, dist_s, _state);
           cost = 1;
@@ -139,18 +127,49 @@ double BehaviorPlanner::inefficiency_cost(string state, json ego, json cars, dou
 
   double cost = 0.0;
 
+
   if (state.compare("KL") == 0) {
     int car_ahead_index = car_ahead(lane, ego, cars, 2 * FAR_SEE, projection_factor);
 
     if (car_ahead_index != -1) {                //penalize KL heavily if car ahead
-      json other = cars[car_ahead_index];
-      double other_s = other[5];
-      double s = ego["s"];
-      cost = map_value(other_s - s, 50, 10, 0, 1);
+      cost = map_value(velocity, TARGET_SPEED, 0, 0, 1);
     } else {
       cost = 0.0;
     }
   }
+
+  if (state.compare("PLCL") == 0) {
+
+    if (lane == 0) return 1;
+
+    int leader = car_ahead(lane - 1, ego, cars, 2 * FAR_SEE, projection_factor);
+    if (leader == -1) {
+      cost = 0;
+    } else {
+      double other_s = cars[leader][5];
+      double s = ego["s"];
+      double dist = other_s - s;
+      cost = map_value(dist, FAR_SEE, 0, 0, 1);
+      console->trace("PLCL lane:{} dist: {}", lane, dist);
+    }
+  }
+
+  if (state.compare("PLCR") == 0) {
+
+    if (lane == LANES_AVAIL-1) return 1;
+
+    int leader = car_ahead(lane + 1, ego, cars, 3 * FAR_SEE, projection_factor);
+    if (leader == -1) {
+      cost = 0;
+    } else {
+      double other_s = cars[leader][5];
+      double s = ego["s"];
+      double dist = other_s - s;
+      cost = map_value(dist, FAR_SEE, 0, 0, 1);
+      console->trace("PLCR lane:{} dist: {}", lane, dist);
+    }
+  }
+
   return cost;
 }
 
@@ -228,17 +247,17 @@ vector<string> BehaviorPlanner::successor_states() {
   vector<string> states;
   string state = this->state;
   if(state.compare("KL") == 0) {
-    states.push_back("KL");
+    states.push_back("KL"); // add KL first, significant if there's a tie
     states.push_back("PLCL");
     states.push_back("PLCR");
   } else if (state.compare("PLCL") == 0) {
-      states.push_back("PLCL");
-      states.push_back("LCL");
-      states.push_back("KL");
+    states.push_back("KL");
+    states.push_back("LCL");
+    states.push_back("PLCL");
   } else if (state.compare("PLCR") == 0) {
-      states.push_back("PLCR");
-      states.push_back("LCR");
-      states.push_back("KL");
+    states.push_back("KL");
+    states.push_back("LCR");
+    states.push_back("PLCR");
   } else if (state.compare("LCL") == 0) {
     states.push_back("KL");
     states.push_back("LCL");
@@ -314,7 +333,14 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   vector<double> next_y_vals;
   vector<vector<double>> result;
 
-  console->trace("track: {:3.0f}%", (car_s / MAX_S) * 100.0);
+  int progress = (int) (car_s / MAX_S * 100.0);
+  if (progress % 5 == 0) {
+    if (progress != last_track_progress) {
+      console->debug("track: {:3d}%", progress);
+      last_track_progress = progress;
+    }
+  }
+
 
   if (prev_size > 0) car_s = end_path_s; // from walkthrough video
 
@@ -350,7 +376,7 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
       if (msg.compare("") != 0) msg += " ";
       msg += s;
     }
-    console->trace("state changed to: {} successors: {}", state, msg);
+    console->debug("state changed to: {} successors: {}", state, msg);
   }
 
   int car_ahead_index = car_ahead(lane, ego, sensor_fusion, 2 * FAR_SEE, prev_size * DELTA_T);
@@ -359,19 +385,20 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   }
   if (intended_lane != lane) {
     console->trace("lane:{} intended lane:{}");
-    governor =speeds[intended_lane];
+    governor = speeds[intended_lane];
     if (governor == -1) {
       governor = TARGET_SPEED;
     }
   } else if (car_ahead_index != -1) {
-      json leader = sensor_fusion[car_ahead_index];
-      governor = calc_speed(leader) * 2.24 - 5.0; // TODO adopt a PID or MPC here
+    json leader = sensor_fusion[car_ahead_index];
+    governor = calc_speed(leader) * 2.24 - 5.0; // TODO adopt a PID or MPC here
   } else {
     governor = TARGET_SPEED;
   }
 
   if (abs(velocity - governor) < 0.1) {
-    console->trace("state {} MAINTAIN velocity = {} lane = {} intended_lane = {}", state, velocity, lane , intended_lane);
+    console->trace("state {} MAINTAIN velocity = {} lane = {} intended_lane = {}", state, velocity, lane,
+                   intended_lane);
   } else if (velocity > governor) {
     velocity -= MAX_ACCEL;
     console->trace("state {} too close to next car decelerate to {} governor {}", state, velocity, governor);
@@ -380,74 +407,98 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
     console->trace("state {} NOT too close to next car accelerate to {}", state, velocity);
   }
 
-    // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
-    // Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
-    vector<double> ptsx;
-    vector<double> ptsy;
+  // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
+  // Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
+  vector<double> ptsx;
+  vector<double> ptsy;
 
-    // reference x,y,yaw states
-    // either we will reference the starting point as where the car is or at the previous paths endpoint
-    double ref_x = car_x;
-    double ref_y = car_y;
-    double ref_yaw = deg2rad(car_yaw);
+  // reference x,y,yaw states
+  // either we will reference the starting point as where the car is or at the previous paths endpoint
+  double ref_x = car_x;
+  double ref_y = car_y;
+  double ref_yaw = deg2rad(car_yaw);
 
-    if (cold) {
-      console->info("Begin Path Planning");   // 'hair' is a fabricated vector, so that we have an initial direction
-      vector<double> hair = getXY(car_s + 0.1, car_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-      ptsx.push_back(car_x);
-      ptsx.push_back(hair[0]);
-      ptsy.push_back(car_y);
-      ptsy.push_back(hair[1]);
-      cold = false;
-    } else if (prev_size < 2) {    // if the previous size is almost empty, use car as starting reference
-      double prev_car_x = car_x - cos(car_yaw); // use two points that make the path tangent to the car
-              double prev_car_y = car_y - sin(car_yaw);
-              ptsx.push_back(prev_car_x);
-              ptsx.push_back(car_x);
-              ptsy.push_back(prev_car_y);
-              ptsy.push_back(car_y);
-    } else {                       // use the previous path's end point as the starting reference
-      ref_x = previous_path_x[prev_size - 1];   // redefine the reference state as previous path end point
-      ref_y = previous_path_y[prev_size - 1];
-      double ref_x_prev = previous_path_x[prev_size - 2];
-      double ref_y_prev = previous_path_y[prev_size - 2];
-      ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
-      ptsx.push_back(ref_x_prev); // use two pts that make the path tangent to the previous path's end point
-      ptsx.push_back(ref_x);
-      ptsy.push_back(ref_y_prev);
-      ptsy.push_back(ref_y);
-    }
+  if (cold) {
+    console->info("Begin Path Planning");   // 'hair' is a fabricated vector, so that we have an initial direction
+    vector<double> hair = getXY(car_s + 0.1, car_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    ptsx.push_back(car_x);
+    ptsx.push_back(hair[0]);
+    ptsy.push_back(car_y);
+    ptsy.push_back(hair[1]);
+    cold = false;
+  } else if (prev_size < 2) {    // if the previous size is almost empty, use car as starting reference
+    double prev_car_x = car_x - cos(car_yaw); // use two points that make the path tangent to the car
+    double prev_car_y = car_y - sin(car_yaw);
+    ptsx.push_back(prev_car_x);
+    ptsx.push_back(car_x);
+    ptsy.push_back(prev_car_y);
+    ptsy.push_back(car_y);
+  } else {                       // use the previous path's end point as the starting reference
+    ref_x = previous_path_x[prev_size - 1];   // redefine the reference state as previous path end point
+    ref_y = previous_path_y[prev_size - 1];
+    double ref_x_prev = previous_path_x[prev_size - 2];
+    double ref_y_prev = previous_path_y[prev_size - 2];
+    ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+    ptsx.push_back(ref_x_prev); // use two pts that make the path tangent to the previous path's end point
+    ptsx.push_back(ref_x);
+    ptsy.push_back(ref_y_prev);
+    ptsy.push_back(ref_y);
+  }
 
-    double lw = LANE_WIDTH, hlw = LANE_WIDTH / 2.0;
-    vector<double> next_wp0 = getXY(car_s +   FAR_SEE, (hlw + lw * intended_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-    vector<double> next_wp1 = getXY(car_s + 2*FAR_SEE, (hlw + lw * intended_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-    vector<double> next_wp2 = getXY(car_s + 3*FAR_SEE, (hlw + lw * intended_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  double lw = LANE_WIDTH, hlw = LANE_WIDTH / 2.0;
+  double d = (hlw + lw * intended_lane);
+  vector<double> next_wp0 = getXY(car_s + 3.0 * FAR_SEE * 1 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp1 = getXY(car_s + 3.0 * FAR_SEE * 2 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp2 = getXY(car_s + 3.0 * FAR_SEE * 3 / 3, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp3 = getXY(car_s + 4.0 * FAR_SEE * 0.40, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp4 = getXY(car_s + 4.0 * FAR_SEE * 0.50, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp5 = getXY(car_s + 4.0 * FAR_SEE * 0.60, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp6 = getXY(car_s + 4.0 * FAR_SEE * 0.70, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp7 = getXY(car_s + 4.0 * FAR_SEE * 0.80, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp8 = getXY(car_s + 4.0 * FAR_SEE * 0.90, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  vector<double> next_wp9 = getXY(car_s + 4.0 * FAR_SEE * 1.00, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-    ptsx.push_back(next_wp0[0]);
-    ptsx.push_back(next_wp1[0]);
-    ptsx.push_back(next_wp2[0]);
 
-    ptsy.push_back(next_wp0[1]);
-    ptsy.push_back(next_wp1[1]);
-    ptsy.push_back(next_wp2[1]);
+  ptsx.push_back(next_wp0[0]);
+  ptsx.push_back(next_wp1[0]);
+  ptsx.push_back(next_wp2[0]);
+//    ptsx.push_back(next_wp3[0]);
+//    ptsx.push_back(next_wp4[0]);
+//    ptsx.push_back(next_wp5[0]);
+//    ptsx.push_back(next_wp6[0]);
+//    ptsx.push_back(next_wp7[0]);
+//    ptsx.push_back(next_wp8[0]);
+//    ptsx.push_back(next_wp9[0]);
 
-    for (int i = 0; i < ptsx.size(); i++) { //shift car reference angle to 0 degrees
-      double shift_x = ptsx[i] - ref_x;
-      double shift_y = ptsy[i] - ref_y;
-      ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
-      ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
-    }
 
-    tk::spline trajectory; // create a spline
+  ptsy.push_back(next_wp0[1]);
+  ptsy.push_back(next_wp1[1]);
+  ptsy.push_back(next_wp2[1]);
+//    ptsy.push_back(next_wp3[1]);
+//    ptsy.push_back(next_wp4[1]);
+//    ptsy.push_back(next_wp5[1]);
+//    ptsy.push_back(next_wp6[1]);
+//    ptsy.push_back(next_wp7[1]);
+//    ptsy.push_back(next_wp8[1]);
+//    ptsy.push_back(next_wp9[1]);
 
-    trajectory.set_points(ptsx, ptsy); // set (x,y) points to the spline
+  for (int i = 0; i < ptsx.size(); i++) { //shift car reference angle to 0 degrees
+    double shift_x = ptsx[i] - ref_x;
+    double shift_y = ptsy[i] - ref_y;
+    ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
+    ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
+  }
 
-    for (int i = 0; i < previous_path_x.size(); i++) { // start with all the previous path points from last time
-      next_x_vals.push_back(previous_path_x[i]);
-      next_y_vals.push_back(previous_path_y[i]);
-    }
+  tk::spline trajectory; // create a spline
 
-    double target_x = 30; // calculate how to break up the spline so that we travel at our desired reference velocity
+  trajectory.set_points(ptsx, ptsy); // set (x,y) points to the spline
+
+  for (int i = 0; i < previous_path_x.size(); i++) { // start with all the previous path points from last time
+    next_x_vals.push_back(previous_path_x[i]);
+    next_y_vals.push_back(previous_path_y[i]);
+  }
+
+  double target_x = 15; // calculate how to break up the spline so that we travel at our desired reference velocity
   double target_y = trajectory(target_x);
   double target_dist = sqrt(target_x * target_x + target_y * target_y);
 
@@ -471,6 +522,9 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
     x_point += ref_x;
     y_point += ref_y;
 
+    vector<double> check = getFrenet(x_point, y_point, ref_yaw, map_waypoints_x, map_waypoints_y);
+    console->trace("frenet {} {}", check[0], check[1]);
+
     next_x_vals.push_back(x_point);
     next_y_vals.push_back(y_point);
 
@@ -479,6 +533,6 @@ vector<vector<double>> BehaviorPlanner::project(json j) {
   result.push_back(next_y_vals);
   return result;
 
-  }
+}
 
 
